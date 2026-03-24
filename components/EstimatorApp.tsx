@@ -189,6 +189,7 @@ export default function EstimatorApp() {
         <EstimateDisplay
           estimate={estimate}
           formData={formData}
+          crewSize={confirmedData?.crew_size ?? 0}
           loading={loading}
           onLocationChange={handleLocationChange}
           onSendToClient={(priceInfo) => {

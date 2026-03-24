@@ -7,6 +7,7 @@ import { generatePDF } from '@/lib/pdf';
 interface Props {
   estimate: EstimateResult;
   formData: JobFormData;
+  crewSize: number;
   loading: boolean;
   onLocationChange: (newLocation: string) => void;
   onSendToClient: (priceInfo: ClientPriceInfo) => void;
@@ -17,6 +18,7 @@ interface Props {
 export default function EstimateDisplay({
   estimate,
   formData,
+  crewSize,
   loading,
   onLocationChange,
   onSendToClient,
@@ -33,8 +35,8 @@ export default function EstimateDisplay({
   // Track which material rows are excluded (by index)
   const [excludedItems, setExcludedItems] = useState<Set<number>>(new Set());
 
-  // Employee count derived from estimate (locked in survey, not adjustable here)
-  const employeeCount = estimate.employee_cost_breakdown ? 1 : 0;
+  // Employee count from confirmed crew size (locked in survey, not adjustable here)
+  const employeeCount = crewSize;
 
   // Pricing view: hourly vs flat rate
   const [showFlatRate, setShowFlatRate] = useState(false);
@@ -353,7 +355,7 @@ export default function EstimateDisplay({
                 <p className="text-xs text-gray-500">
                   {isSolo
                     ? 'Solo — just you, no employees'
-                    : `You + employees`}
+                    : `You + ${employeeCount} employee${employeeCount > 1 ? 's' : ''}`}
                 </p>
               </div>
               <button

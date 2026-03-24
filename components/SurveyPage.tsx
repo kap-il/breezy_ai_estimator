@@ -14,6 +14,8 @@ interface Props {
 export default function SurveyPage({ suggestion, formData, error, onConfirm, onBack }: Props) {
   const [materials, setMaterials] = useState<SurveyMaterial[]>(suggestion.materials);
   const [crewSize, setCrewSize] = useState(suggestion.suggested_crew_size);
+  const [crewInputValue, setCrewInputValue] = useState(String(suggestion.suggested_crew_size));
+  const [crewError, setCrewError] = useState<string | null>(null);
 
   // Track which quantity fields have been confirmed (autofill or manual edit)
   const [confirmedQty, setConfirmedQty] = useState<Set<number>>(new Set());
@@ -110,6 +112,26 @@ export default function SurveyPage({ suggestion, formData, error, onConfirm, onB
   };
 
   const includedCount = materials.filter((m) => m.included).length;
+
+  const updateCrewSize = (value: number) => {
+    if (isNaN(value) || value < 0) return;
+    const clamped = Math.floor(value);
+    setCrewSize(clamped);
+    setCrewInputValue(String(clamped));
+    setCrewError(null);
+  };
+
+  const handleCrewInput = (raw: string) => {
+    setCrewInputValue(raw);
+    setCrewError(null);
+    const parsed = parseInt(raw, 10);
+    if (raw === '') {
+      setCrewSize(0);
+      return;
+    }
+    if (isNaN(parsed) || parsed < 0) return;
+    setCrewSize(parsed);
+  };
 
   const handleConfirm = () => {
     onConfirm({
@@ -272,7 +294,7 @@ export default function SurveyPage({ suggestion, formData, error, onConfirm, onB
         {/* Crew Size */}
         <section>
           <h2 className="text-lg font-semibold text-gray-800 mb-2">Crew Size</h2>
-          <div className="bg-gray-50 rounded-lg p-4">
+          <div className="bg-gray-50 rounded-lg p-4 space-y-2">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-700">
@@ -281,25 +303,33 @@ export default function SurveyPage({ suggestion, formData, error, onConfirm, onB
                     : `You + ${crewSize} employee${crewSize > 1 ? 's' : ''}`}
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setCrewSize(Math.max(0, crewSize - 1))}
+                  onClick={() => updateCrewSize(crewSize - 1)}
                   disabled={crewSize === 0}
                   className="w-8 h-8 rounded-full border border-gray-300 text-gray-600 font-bold hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer flex items-center justify-center"
                 >
                   −
                 </button>
-                <span className="text-lg font-semibold text-gray-900 w-8 text-center">
-                  {crewSize}
-                </span>
+                <input
+                  type="number"
+                  value={crewInputValue}
+                  onChange={(e) => handleCrewInput(e.target.value)}
+                  onBlur={() => setCrewInputValue(String(crewSize))}
+                  className="w-14 text-center text-lg font-semibold text-gray-900 border border-gray-200 rounded-lg py-1 focus:ring-2 focus:ring-blue-200 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  min="0"
+                />
                 <button
-                  onClick={() => setCrewSize(crewSize + 1)}
+                  onClick={() => updateCrewSize(crewSize + 1)}
                   className="w-8 h-8 rounded-full border border-gray-300 text-gray-600 font-bold hover:bg-gray-100 transition cursor-pointer flex items-center justify-center"
                 >
                   +
                 </button>
               </div>
             </div>
+            {crewError && (
+              <p className="text-sm text-red-600 font-medium">{crewError}</p>
+            )}
           </div>
         </section>
 

@@ -4,22 +4,39 @@ import { fetchBLSWages, updateLogWithEstimate } from '@/lib/bls';
 
 const client = new Anthropic();
 
-const VALIDATION_PROMPT = `You validate materials lists for service business job estimates.
+const VALIDATION_PROMPT = `You validate materials lists AND crew sizes for service business job estimates.
 
-Given a trade type, job description, and a list of materials, check if every item is a legitimate material/supply/service for that trade and job.
+Given a trade type, job description, a list of materials, and a crew size, check:
+1. If every item is a legitimate material/supply/service for that trade and job
+2. If the crew size is reasonable for the scope of this specific job
 
 Return ONLY a JSON object. NO markdown. NO code fences.
 
-If ALL items are valid:
+If everything is valid:
 {"valid": true}
 
-If ANY item is nonsensical, offensive, made-up, or completely unrelated to the trade type and job:
+If ANY material is nonsensical, offensive, made-up, or completely unrelated to the trade type and job:
 {"valid": false, "invalid_items": ["item name 1", "item name 2"], "reason": "short explanation"}
 
-RULES:
+If the crew size is unreasonable for this job:
+{"valid": false, "crew_size_error": "short explanation of why the crew size doesn't match the job scope"}
+
+Both errors can appear together if applicable.
+
+MATERIAL RULES:
 - Only flag items that are CLEARLY absurd or unrelated (e.g. "poop machine" for electrical, "unicorn tears" for plumbing, offensive/joke items)
 - Unusual but plausibly trade-related items should pass (e.g. "fish tape" for electrical is valid even though it sounds odd)
-- Be strict about nonsense but lenient about legitimate niche items`;
+- Be strict about nonsense but lenient about legitimate niche items
+
+CREW SIZE RULES:
+- crew_size = 0 means solo (just the owner). crew_size = N means owner + N employees.
+- Flag crew sizes that are clearly excessive for the job scope. Think about the physical space and amount of work.
+  - Example: 20 people for a 10ft x 10ft patio paint job is absurd — too many workers for a tiny space
+  - Example: 15 people to cater a 10-person dinner is excessive
+  - Example: 8 people to install a single toilet is unreasonable
+- Flag crew sizes only when they are CLEARLY absurd, not just slightly high or low
+- A crew of 3-4 for a moderate residential job is fine. A crew of 10+ for a small job is a red flag.
+- Large commercial jobs can reasonably need large crews — use judgment based on the job description`;
 
 const SYSTEM_PROMPT = `You are an expert estimator for service businesses.
 
@@ -126,8 +143,14 @@ export async function POST(req: Request) {
     const { formData: body, confirmed }: EstimateRequestBody = await req.json();
 
     // Step 1: Validate materials before pricing
+    const crewDesc = confirmed.crew_size === 0
+      ? '0 (solo — just the owner)'
+      : `${confirmed.crew_size} (owner + ${confirmed.crew_size} employee${confirmed.crew_size > 1 ? 's' : ''})`;
+
     const validationMessage = `Trade type: ${body.tradeType}
 Job description: ${body.jobDescription}
+
+Crew size: ${crewDesc}
 
 Materials to validate:
 ${confirmed.materials.map((m) => `- ${m.item}`).join('\n')}`;
@@ -145,9 +168,16 @@ ${confirmed.materials.map((m) => `- ${m.item}`).join('\n')}`;
     const validation = JSON.parse(valCleaned);
 
     if (!validation.valid) {
-      const items = (validation.invalid_items || []).join(', ');
+      const errors: string[] = [];
+      if (validation.invalid_items?.length) {
+        const items = validation.invalid_items.join(', ');
+        errors.push(`Invalid material(s): ${items}. ${validation.reason || 'Please remove items that are not related to this job.'}`);
+      }
+      if (validation.crew_size_error) {
+        errors.push(`Crew size issue: ${validation.crew_size_error} Please adjust your crew size and try again.`);
+      }
       return Response.json(
-        { success: false, error: `Invalid material(s): ${items}. ${validation.reason || 'Please remove items that are not related to this job.'}` },
+        { success: false, error: errors.join(' ') || 'Validation failed. Please review your inputs.' },
         { status: 400 }
       );
     }

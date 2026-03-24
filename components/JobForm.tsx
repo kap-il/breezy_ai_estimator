@@ -120,7 +120,7 @@ export default function JobForm({ onSubmit, loading, error, initialData }: Props
           />
           <input
             name="location"
-            placeholder="City or zip code *"
+            placeholder="City + State or Zip Code (e.g. Austin, TX or 78701) *"
             value={form.location}
             onChange={handleChange}
             required

@@ -4,6 +4,23 @@ import { fetchBLSWages, updateLogWithEstimate } from '@/lib/bls';
 
 const client = new Anthropic();
 
+const VALIDATION_PROMPT = `You validate materials lists for service business job estimates.
+
+Given a trade type, job description, and a list of materials, check if every item is a legitimate material/supply/service for that trade and job.
+
+Return ONLY a JSON object. NO markdown. NO code fences.
+
+If ALL items are valid:
+{"valid": true}
+
+If ANY item is nonsensical, offensive, made-up, or completely unrelated to the trade type and job:
+{"valid": false, "invalid_items": ["item name 1", "item name 2"], "reason": "short explanation"}
+
+RULES:
+- Only flag items that are CLEARLY absurd or unrelated (e.g. "poop machine" for electrical, "unicorn tears" for plumbing, offensive/joke items)
+- Unusual but plausibly trade-related items should pass (e.g. "fish tape" for electrical is valid even though it sounds odd)
+- Be strict about nonsense but lenient about legitimate niche items`;
+
 const SYSTEM_PROMPT = `You are an expert estimator for service businesses.
 
 You will be given:
@@ -51,13 +68,7 @@ JSON shape:
   "notes": "string"
 }
 
-VALIDATION — CHECK EVERY ITEM FIRST:
-- Before pricing, validate each material against the trade type and job description
-- If ANY item is clearly nonsensical, inappropriate, offensive, or completely unrelated to the trade (e.g. "poop machine" for an electrical job, "unicorn tears" for plumbing), REJECT the entire request
-- To reject: return {"error": "Invalid material: [item name] is not a legitimate material for this job type. Please review your materials list.", "invalid_items": ["item name"]}
-- Only reject truly absurd/irrelevant items — if an item is unusual but plausibly related to the trade, price it normally
-
-CRITICAL: MATERIAL LIST IS LOCKED (after validation passes)
+CRITICAL: MATERIAL LIST IS LOCKED
 - Use the EXACT items and quantities provided — do not add, remove, rename, or reorder
 - Your only job is to assign unit_cost_low and unit_cost_high to each item
 - unit_cost_low/high are retail prices the CLIENT pays (Home Depot/Lowe's tier for trades, restaurant supply for catering, etc.)
@@ -114,7 +125,34 @@ export async function POST(req: Request) {
   try {
     const { formData: body, confirmed }: EstimateRequestBody = await req.json();
 
-    // Fetch real BLS OEWS wage data for the trade
+    // Step 1: Validate materials before pricing
+    const validationMessage = `Trade type: ${body.tradeType}
+Job description: ${body.jobDescription}
+
+Materials to validate:
+${confirmed.materials.map((m) => `- ${m.item}`).join('\n')}`;
+
+    const valResponse = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 256,
+      temperature: 0,
+      system: VALIDATION_PROMPT,
+      messages: [{ role: 'user', content: validationMessage }],
+    });
+
+    const valRaw = valResponse.content[0].type === 'text' ? valResponse.content[0].text : '';
+    const valCleaned = valRaw.replace(/```json/g, '').replace(/```/g, '').trim();
+    const validation = JSON.parse(valCleaned);
+
+    if (!validation.valid) {
+      const items = (validation.invalid_items || []).join(', ');
+      return Response.json(
+        { success: false, error: `Invalid material(s): ${items}. ${validation.reason || 'Please remove items that are not related to this job.'}` },
+        { status: 400 }
+      );
+    }
+
+    // Step 2: Fetch real BLS OEWS wage data for the trade
     const blsWages = await fetchBLSWages(body.tradeType, body.location);
 
     let blsContext = '';
@@ -170,17 +208,7 @@ ${materialsList}${blsContext}
       .replace(/```/g, '')
       .trim();
 
-    const parsed = JSON.parse(cleaned);
-
-    // Check if Claude flagged invalid materials
-    if (parsed.error && parsed.invalid_items) {
-      return Response.json(
-        { success: false, error: parsed.error },
-        { status: 400 }
-      );
-    }
-
-    const estimate = parsed;
+    const estimate = JSON.parse(cleaned);
 
     // Update the BLS log with Claude's final estimate
     await updateLogWithEstimate(estimate);

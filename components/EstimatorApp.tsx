@@ -17,7 +17,7 @@ export default function EstimatorApp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Step 1: Form submit → fetch survey suggestions
+  // Step 1: Form submit → validate inputs → fetch survey suggestions
   const handleFormSubmit = async (data: JobFormData) => {
     setFormData(data);
     setLoading(true);
@@ -25,6 +25,23 @@ export default function EstimatorApp() {
     setAppState('survey_loading');
 
     try {
+      // Validate job description, trade type, and location first
+      const valRes = await fetch('/api/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tradeType: data.tradeType,
+          jobDescription: data.jobDescription,
+          location: data.location,
+        }),
+      });
+
+      const valJson = await valRes.json();
+      if (!valJson.success) {
+        const errors: string[] = valJson.errors || ['Invalid input.'];
+        throw new Error(errors.join(' '));
+      }
+
       const res = await fetch('/api/survey', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -38,7 +55,7 @@ export default function EstimatorApp() {
       setAppState('survey');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
-      setError(`Something went wrong generating material suggestions: ${msg}`);
+      setError(msg);
       setAppState('form');
     } finally {
       setLoading(false);

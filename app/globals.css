@@ -3,6 +3,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --safe-area-bg: #f4f7fb;
 }
 
 @theme inline {
@@ -16,11 +17,33 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --safe-area-bg: #0a0a0a;
   }
 }
 
+/* Hide scrollbar on iOS / mobile while keeping scroll functional */
+html, body {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: auto;
+}
+
+html {
+  overflow-y: scroll;
+  scrollbar-width: none; /* Firefox */
+}
+
+html::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
+  width: 0;
+  height: 0;
+}
+
 body {
-  background: var(--background);
+  background: var(--safe-area-bg);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }

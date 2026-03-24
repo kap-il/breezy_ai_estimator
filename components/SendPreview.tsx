@@ -1,16 +1,17 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { EstimateResult, JobFormData, ClientInfo } from '@/lib/types';
+import { EstimateResult, JobFormData, ClientInfo, ClientPriceInfo } from '@/lib/types';
 
 interface Props {
   estimate: EstimateResult;
   formData: JobFormData;
+  clientPrice: ClientPriceInfo;
   onReset: () => void;
   onBackToSurvey: () => void;
 }
 
-export default function SendPreview({ estimate, formData, onReset, onBackToSurvey }: Props) {
+export default function SendPreview({ estimate, formData, clientPrice, onReset, onBackToSurvey }: Props) {
   const [client, setClient] = useState<ClientInfo>({
     clientName: '',
     clientPhone: '',
@@ -35,14 +36,18 @@ export default function SendPreview({ estimate, formData, onReset, onBackToSurve
   const name = client.clientName || '[Client Name]';
   const email = client.clientEmail || '[client@email.com]';
 
-  const defaultSms = `Hi ${name}, ${formData.businessName} sent you an estimate for: ${estimate.job_summary}. Total: ${fmt(estimate.total_low)}–${fmt(estimate.total_high)}. Reply to discuss or book.`;
+  const priceDisplay = clientPrice.customPrice
+    ? fmt(clientPrice.customPrice)
+    : `${fmt(clientPrice.totalLow)} – ${fmt(clientPrice.totalHigh)}`;
+
+  const defaultSms = `Hi ${name}, ${formData.businessName} sent you an estimate for: ${estimate.job_summary}. Total: ${priceDisplay}. Reply to discuss or book.`;
 
   const defaultEmail = `Hi ${name},
 
 Thank you for reaching out. Please find your estimate below.
 
 Job: ${estimate.job_summary}
-Estimated Total: ${fmt(estimate.total_low)} – ${fmt(estimate.total_high)}
+Estimated Total: ${priceDisplay}
 
 A detailed invoice is attached to this email.
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { EstimateResult, JobFormData } from '@/lib/types';
+import { EstimateResult, JobFormData, ClientPriceInfo } from '@/lib/types';
 import { generatePDF } from '@/lib/pdf';
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
   formData: JobFormData;
   loading: boolean;
   onLocationChange: (newLocation: string) => void;
-  onSendToClient: () => void;
+  onSendToClient: (priceInfo: ClientPriceInfo) => void;
   onReset: () => void;
   onBackToSurvey: () => void;
 }
@@ -484,7 +484,12 @@ export default function EstimateDisplay({
             Download PDF Invoice
           </button>
           <button
-            onClick={onSendToClient}
+            onClick={() => {
+              const priceLow = showFlatRate ? flatRate.total_low : calc.clientTotalLow;
+              const priceHigh = showFlatRate ? flatRate.total_high : calc.clientTotalHigh;
+              const cp = customPrice ? parseFloat(customPrice) : undefined;
+              onSendToClient({ totalLow: priceLow, totalHigh: priceHigh, customPrice: cp });
+            }}
             className="flex-1 rounded-lg bg-blue-600 px-6 py-3 text-white font-semibold hover:bg-blue-700 transition cursor-pointer"
           >
             Send to Client →

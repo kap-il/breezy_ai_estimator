@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { AppState, JobFormData, EstimateResult, SurveySuggestion, SurveyConfirmedData } from '@/lib/types';
+import { AppState, JobFormData, EstimateResult, SurveySuggestion, SurveyConfirmedData, ClientPriceInfo } from '@/lib/types';
 import JobForm from './JobForm';
 import SurveyPage from './SurveyPage';
 import EstimateDisplay from './EstimateDisplay';
@@ -13,6 +13,7 @@ export default function EstimatorApp() {
   const [survey, setSurvey] = useState<SurveySuggestion | null>(null);
   const [confirmedData, setConfirmedData] = useState<SurveyConfirmedData | null>(null);
   const [estimate, setEstimate] = useState<EstimateResult | null>(null);
+  const [clientPrice, setClientPrice] = useState<ClientPriceInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,8 +65,9 @@ export default function EstimatorApp() {
 
       setEstimate(json.estimate);
       setAppState('estimate');
-    } catch {
-      setError('Something went wrong generating your estimate. Try again.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Something went wrong generating your estimate.';
+      setError(msg);
       setAppState('survey');
     } finally {
       setLoading(false);
@@ -104,6 +106,7 @@ export default function EstimatorApp() {
     setSurvey(null);
     setConfirmedData(null);
     setEstimate(null);
+    setClientPrice(null);
     setError(null);
   };
 
@@ -146,6 +149,7 @@ export default function EstimatorApp() {
         <SurveyPage
           suggestion={survey}
           formData={formData}
+          error={error}
           onConfirm={handleSurveyConfirm}
           onBack={() => {
             setAppState('form');
@@ -170,16 +174,20 @@ export default function EstimatorApp() {
           formData={formData}
           loading={loading}
           onLocationChange={handleLocationChange}
-          onSendToClient={() => setAppState('preview')}
+          onSendToClient={(priceInfo) => {
+            setClientPrice(priceInfo);
+            setAppState('preview');
+          }}
           onReset={handleReset}
           onBackToSurvey={handleBackToSurvey}
         />
       )}
 
-      {appState === 'preview' && estimate && formData && (
+      {appState === 'preview' && estimate && formData && clientPrice && (
         <SendPreview
           estimate={estimate}
           formData={formData}
+          clientPrice={clientPrice}
           onReset={handleReset}
           onBackToSurvey={handleBackToSurvey}
         />

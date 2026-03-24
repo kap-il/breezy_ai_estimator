@@ -6,11 +6,12 @@ import { SurveySuggestion, SurveyMaterial, SurveyConfirmedData, JobFormData } fr
 interface Props {
   suggestion: SurveySuggestion;
   formData: JobFormData;
+  error: string | null;
   onConfirm: (confirmed: SurveyConfirmedData) => void;
   onBack: () => void;
 }
 
-export default function SurveyPage({ suggestion, formData, onConfirm, onBack }: Props) {
+export default function SurveyPage({ suggestion, formData, error, onConfirm, onBack }: Props) {
   const [materials, setMaterials] = useState<SurveyMaterial[]>(suggestion.materials);
   const [crewSize, setCrewSize] = useState(suggestion.suggested_crew_size);
 
@@ -301,6 +302,13 @@ export default function SurveyPage({ suggestion, formData, onConfirm, onBack }: 
             </div>
           </div>
         </section>
+
+        {/* Error */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-sm text-red-700 font-medium">{error}</p>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex gap-3 pt-4 border-t border-gray-200">

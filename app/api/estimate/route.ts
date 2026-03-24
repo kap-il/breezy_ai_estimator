@@ -51,7 +51,13 @@ JSON shape:
   "notes": "string"
 }
 
-CRITICAL: MATERIAL LIST IS LOCKED
+VALIDATION — CHECK EVERY ITEM FIRST:
+- Before pricing, validate each material against the trade type and job description
+- If ANY item is clearly nonsensical, inappropriate, offensive, or completely unrelated to the trade (e.g. "poop machine" for an electrical job, "unicorn tears" for plumbing), REJECT the entire request
+- To reject: return {"error": "Invalid material: [item name] is not a legitimate material for this job type. Please review your materials list.", "invalid_items": ["item name"]}
+- Only reject truly absurd/irrelevant items — if an item is unusual but plausibly related to the trade, price it normally
+
+CRITICAL: MATERIAL LIST IS LOCKED (after validation passes)
 - Use the EXACT items and quantities provided — do not add, remove, rename, or reorder
 - Your only job is to assign unit_cost_low and unit_cost_high to each item
 - unit_cost_low/high are retail prices the CLIENT pays (Home Depot/Lowe's tier for trades, restaurant supply for catering, etc.)
@@ -164,7 +170,17 @@ ${materialsList}${blsContext}
       .replace(/```/g, '')
       .trim();
 
-    const estimate = JSON.parse(cleaned);
+    const parsed = JSON.parse(cleaned);
+
+    // Check if Claude flagged invalid materials
+    if (parsed.error && parsed.invalid_items) {
+      return Response.json(
+        { success: false, error: parsed.error },
+        { status: 400 }
+      );
+    }
+
+    const estimate = parsed;
 
     // Update the BLS log with Claude's final estimate
     await updateLogWithEstimate(estimate);

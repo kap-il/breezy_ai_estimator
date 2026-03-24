@@ -79,4 +79,10 @@ export interface SurveyConfirmedData {
   crew_size: number;
 }
 
+export interface ClientPriceInfo {
+  totalLow: number;
+  totalHigh: number;
+  customPrice?: number;
+}
+
 export type AppState = 'form' | 'survey_loading' | 'survey' | 'estimate_loading' | 'estimate' | 'preview';

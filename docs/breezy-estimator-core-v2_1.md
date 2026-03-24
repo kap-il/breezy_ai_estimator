@@ -1,4 +1,3 @@
-
 # Breezy AI Job Estimator — Core Functionality Roadmap
 
 ## What We're Building

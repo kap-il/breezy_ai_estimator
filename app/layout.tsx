@@ -16,7 +16,9 @@ export const metadata: Metadata = {
   title: "Breezy AI Job Estimator",
   description: "Get professional job estimates in seconds with AI",
   icons: {
-    icon: "/icon.svg",
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
   },
 };
 

@@ -1,3 +1,4 @@
+
 # Breezy AI Job Estimator — Core Functionality Roadmap
 
 ## What We're Building
@@ -8,6 +9,7 @@ client-ready estimate. The tool demonstrates Breezy's AI capabilities
 directly — no promises, just proof.
 
 **The funnel:**
+
 ```
 Provider describes job
   → AI generates estimate
@@ -62,6 +64,82 @@ breezy-estimator/
 ├── package.json
 └── next.config.js
 ```
+
+---
+
+## Data Sources
+
+### Labor Rates — BLS OEWS (Free, Public)
+
+**Bureau of Labor Statistics Occupational Employment and Wage Statistics (OEWS)**
+
+- URL: https://www.bls.gov/oes/
+- Data API: https://api.bls.gov/publicAPI/v2/timeseries/data/
+- Coverage: 830+ occupations, broken down by state and ~530 metro areas
+- Format: Free JSON API (registration gives higher rate limits), CSV download
+- Update frequency: Annual (May reference date)
+- Key trades covered: Plumbers (47-2152), HVAC (49-9021), Electricians (47-2111),
+  Roofers (47-2181), Painters (47-2141), Carpenters (47-2031), Landscapers (37-3011)
+
+**How to use it:**
+For a prototype, the simplest approach is to download the May 2024 national
+and state-level CSV files and bundle a lightweight lookup table into the app.
+This avoids runtime API calls and keeps the build simple.
+
+Download: https://www.bls.gov/oes/tables.htm
+→ "National" XLS → filter by SOC occupation code
+→ "State" XLS → filter by state for regional adjustment
+
+**Sample hardcoded lookup (lib/laborRates.ts):**
+
+```typescript
+// Source: BLS OEWS May 2024
+// Median hourly wages by trade (national baseline)
+export const LABOR_RATES: Record<string, { low: number; high: number; title: string }> = {
+  plumber:        { low: 28, high: 42, title: 'Plumbers, Pipefitters, Steamfitters' },
+  hvac:           { low: 25, high: 38, title: 'HVAC Mechanics and Installers' },
+  electrician:    { low: 27, high: 44, title: 'Electricians' },
+  roofer:         { low: 22, high: 35, title: 'Roofers' },
+  painter:        { low: 20, high: 30, title: 'Painters, Construction' },
+  carpenter:      { low: 23, high: 38, title: 'Carpenters' },
+  landscaper:     { low: 17, high: 26, title: 'Landscaping and Groundskeeping Workers' },
+  cleaner:        { low: 14, high: 22, title: 'Maids and Housekeeping Cleaners' },
+  general_labor:  { low: 18, high: 30, title: 'Construction Laborers' },
+};
+
+// Regional cost-of-living multipliers (approximate)
+// Source: BLS state wage comparisons, May 2024
+export const REGIONAL_MULTIPLIERS: Record<string, number> = {
+  CA: 1.35, NY: 1.30, WA: 1.25, MA: 1.25, CO: 1.15,
+  TX: 1.00, FL: 1.00, GA: 0.95, OH: 0.90, MI: 0.90,
+  default: 1.00,
+};
+```
+
+Pass the location into the AI prompt alongside these baseline rates so Claude
+can apply regional adjustments intelligently.
+
+### Material Costs — AI with Disclosure
+
+**Why no free database exists:**
+
+- RSMeans (industry standard) — paywalled, thousands/year
+- HomeAdvisor/Angi cost data — no official API, scraping only
+- 1build API — paid, construction-focused only
+- Home Depot/Lowes — no public pricing API
+
+**The approach:**
+Claude's training data includes extensive contractor forums, Home Depot
+pricing history, and trade publications. For a prototype with cost RANGES
+(not exact prices), this is sufficient and honest. Add a clear disclosure
+on the UI:
+
+> "Material estimates are AI-generated ranges based on national averages.
+> Actual costs vary by supplier, region, and market conditions.
+> Always verify with your local supplier before quoting."
+
+This is the same disclaimer that HomeAdvisor and Angi use on their own
+cost guides — it's standard practice in the industry.
 
 ---
 
@@ -162,8 +240,12 @@ JSON shape:
 
 Rules:
 - Always use realistic cost RANGES, never single point estimates
-- Use BLS wage data as reference for labor rates by trade and region
-- If location affects pricing, factor it in
+- Labor rates are provided from BLS OEWS May 2024 data — use them as your
+  baseline and adjust for location if needed
+- Material costs: use realistic market ranges from your training data.
+  These are estimates, not guarantees — ranges protect the provider
+- If location affects pricing, factor it in (SF/NYC ~30% above national avg,
+  rural midwest ~10% below)
 - If materials are not applicable (e.g. haircut), return empty array []
 - Be conservative and realistic — these estimates will be sent to real clients
 - total_low and total_high must equal materials total + labor total`;
@@ -705,6 +787,7 @@ export function generatePDF(estimate: EstimateResult, formData: JobFormData) {
 ## Environment Setup
 
 **`.env.local`**
+
 ```
 ANTHROPIC_API_KEY=your_key_here
 ```
@@ -743,15 +826,15 @@ Follow this sequence exactly — don't skip ahead:
 
 Run all of these before submitting:
 
-| Trade | Description |
-|---|---|
-| Plumbing | Fix a leaky kitchen faucet, replace shutoff valve, Austin TX |
-| HVAC | Full AC unit replacement, 2000 sq ft home, Phoenix AZ |
-| Catering | Wedding reception for 150 people, 3 course meal, Chicago IL |
-| Landscaping | Weekly lawn maintenance for 1 acre property, Nashville TN |
-| Hair stylist | Color treatment, cut and style, highlights, NYC |
-| Edge case | Vague one-word input — must not crash |
-| Edge case | Very large complex job — verify totals add up |
+| Trade        | Description                                                  |
+| ------------ | ------------------------------------------------------------ |
+| Plumbing     | Fix a leaky kitchen faucet, replace shutoff valve, Austin TX |
+| HVAC         | Full AC unit replacement, 2000 sq ft home, Phoenix AZ        |
+| Catering     | Wedding reception for 150 people, 3 course meal, Chicago IL  |
+| Landscaping  | Weekly lawn maintenance for 1 acre property, Nashville TN    |
+| Hair stylist | Color treatment, cut and style, highlights, NYC              |
+| Edge case    | Vague one-word input — must not crash                       |
+| Edge case    | Very large complex job — verify totals add up               |
 
 ---
 

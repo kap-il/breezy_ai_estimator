@@ -13,12 +13,24 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000"),
   title: "Breezy AI Job Estimator",
   description: "Get professional job estimates in seconds with AI",
   icons: {
     icon: [
       { url: "/icon.svg", type: "image/svg+xml" },
     ],
+  },
+  openGraph: {
+    title: "Breezy AI Job Estimator",
+    description: "Get professional job estimates in seconds with AI",
+    siteName: "Breezy",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Breezy AI Job Estimator",
+    description: "Get professional job estimates in seconds with AI",
   },
 };
 

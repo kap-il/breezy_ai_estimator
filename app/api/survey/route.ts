@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { JobFormData, SurveySuggestion } from '@/lib/types';
+import { checkRateLimit } from '@/lib/rateLimit';
 
 const client = new Anthropic();
 
@@ -46,9 +47,35 @@ RULES FOR PROJECT JOBS (pastry orders, catering, floral, custom goods, etc.):
 - Only include ancillary items (packaging, transport, equipment rental) if the description mentions delivery, setup, or similar
 - Do NOT include general kitchen equipment, tools, or supplies the provider obviously already owns (ovens, mixers, pans, knives, etc.)
 - Do NOT include PPE, permits, or disposal unless specifically relevant
-- If the job is "60 cupcakes" — list flour, sugar, butter, frosting ingredients, cupcake liners, boxes. NOT: oven, mixer, spatulas, apron`;
+- If the job is "60 cupcakes" — list flour, sugar, butter, frosting ingredients, cupcake liners, boxes. NOT: oven, mixer, spatulas, apron
+
+UNCERTAINTY RULE:
+If the job description is too vague to generate a reliable materials
+list, return:
+{
+  "job_type": "duration",
+  "insufficient_data": true,
+  "reason": "one sentence explanation",
+  "materials": [],
+  "suggested_crew_size": 0,
+  "crew_rationale": ""
+}`;
 
 export async function POST(req: Request) {
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+    req.headers.get('x-real-ip') ||
+    'unknown';
+  const sessionId = req.headers.get('x-session-id') || '';
+
+  const { allowed, reason } = checkRateLimit(ip, sessionId);
+  if (!allowed) {
+    return Response.json(
+      { success: false, error: reason },
+      { status: 429 }
+    );
+  }
+
   try {
     const body: JobFormData = await req.json();
 
@@ -59,9 +86,10 @@ Location: ${body.location}
     `.trim();
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       temperature: 0,
+      cache_control: { type: 'ephemeral' },
       system: SURVEY_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
     });

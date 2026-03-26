@@ -25,6 +25,28 @@ export default function EstimateDisplay({
   onReset,
   onBackToSurvey,
 }: Props) {
+  if (estimate.insufficient_data) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-3xl bg-white rounded-2xl shadow-lg p-8 space-y-6 text-center">
+          <h2 className="text-2xl font-bold text-gray-900">We need more information</h2>
+          <p className="text-gray-600">{estimate.reason}</p>
+          <p className="text-sm text-gray-500">
+            Try adding more detail to your job description &mdash;
+            scope, materials, location, and scale help us
+            generate an accurate estimate.
+          </p>
+          <button
+            onClick={onReset}
+            className="rounded-lg bg-blue-600 px-6 py-3 text-white font-semibold hover:bg-blue-700 transition cursor-pointer"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const fmt = (n: number) =>
     n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 

@@ -37,6 +37,8 @@ export interface FlatRate {
 export interface EstimateResult {
   trade: string;
   job_summary: string;
+  insufficient_data?: boolean;
+  reason?: string;
   materials: MaterialLine[];
   labor_hours_low: number;
   labor_hours_high: number;
@@ -69,6 +71,8 @@ export interface SurveyMaterial {
 
 export interface SurveySuggestion {
   job_type: 'duration' | 'project';
+  insufficient_data?: boolean;
+  reason?: string;
   materials: SurveyMaterial[];
   suggested_crew_size: number;
   crew_rationale: string;

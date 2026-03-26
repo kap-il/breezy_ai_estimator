@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { checkRateLimit } from '@/lib/rateLimit';
 
 const client = new Anthropic();
 
@@ -38,6 +39,20 @@ interface ValidateBody {
 }
 
 export async function POST(req: Request) {
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+    req.headers.get('x-real-ip') ||
+    'unknown';
+  const sessionId = req.headers.get('x-session-id') || '';
+
+  const { allowed, reason } = checkRateLimit(ip, sessionId);
+  if (!allowed) {
+    return Response.json(
+      { success: false, error: reason },
+      { status: 429 }
+    );
+  }
+
   try {
     const body: ValidateBody = await req.json();
 
@@ -46,9 +61,10 @@ Job description: ${body.jobDescription}
 Location: ${body.location}`;
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 256,
       temperature: 0,
+      cache_control: { type: 'ephemeral' },
       system: VALIDATE_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
     });

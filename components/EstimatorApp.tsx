@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AppState, JobFormData, EstimateResult, SurveySuggestion, SurveyConfirmedData, ClientPriceInfo } from '@/lib/types';
 import JobForm from './JobForm';
 import SurveyPage from './SurveyPage';
@@ -17,6 +17,18 @@ export default function EstimatorApp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const sessionId = useRef<string>('');
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      let id = sessionStorage.getItem('breezy-session');
+      if (!id) {
+        id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        sessionStorage.setItem('breezy-session', id);
+      }
+      sessionId.current = id;
+    }
+  }, []);
+
   // Step 1: Form submit → validate inputs → fetch survey suggestions
   const handleFormSubmit = async (data: JobFormData) => {
     setFormData(data);
@@ -28,7 +40,7 @@ export default function EstimatorApp() {
       // Validate job description, trade type, and location first
       const valRes = await fetch('/api/validate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-session-id': sessionId.current },
         body: JSON.stringify({
           tradeType: data.tradeType,
           jobDescription: data.jobDescription,
@@ -44,7 +56,7 @@ export default function EstimatorApp() {
 
       const res = await fetch('/api/survey', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-session-id': sessionId.current },
         body: JSON.stringify(data),
       });
 
@@ -73,7 +85,7 @@ export default function EstimatorApp() {
     try {
       const res = await fetch('/api/estimate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-session-id': sessionId.current },
         body: JSON.stringify({ formData, confirmed }),
       });
 
@@ -102,7 +114,7 @@ export default function EstimatorApp() {
     try {
       const res = await fetch('/api/estimate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-session-id': sessionId.current },
         body: JSON.stringify({ formData: updatedFormData, confirmed: confirmedData }),
       });
 

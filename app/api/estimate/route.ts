@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { JobFormData, SurveyConfirmedData } from '@/lib/types';
 import { fetchBLSWages, updateLogWithEstimate } from '@/lib/bls';
+import { checkRateLimit } from '@/lib/rateLimit';
 
 const client = new Anthropic();
 
@@ -131,7 +132,31 @@ PRICING MATH:
 
 LABOR HOURS (duration jobs only):
 - labor_hours_low and labor_hours_high should differ by no more than 25%
-- Base on standard production rates for the trade`;
+- Base on standard production rates for the trade
+
+UNCERTAINTY RULE:
+If you cannot generate a reliable estimate for this job — for example,
+the job description is too vague, the trade is highly specialized with
+limited pricing data, or you have low confidence in the numbers —
+return this JSON instead of fabricating figures:
+
+{
+  "trade": "detected trade type or 'Unknown'",
+  "job_summary": "brief description of what was requested",
+  "insufficient_data": true,
+  "reason": "one sentence explaining why you cannot estimate reliably",
+  "materials": [],
+  "labor_hours_low": 0,
+  "labor_hours_high": 0,
+  "hourly_rate_low": 0,
+  "hourly_rate_high": 0,
+  "total_low": 0,
+  "total_high": 0,
+  "notes": ""
+}
+
+Only use this for genuine uncertainty. For all common trades and
+well-described jobs, always generate a full estimate.`;
 
 interface EstimateRequestBody {
   formData: JobFormData;
@@ -139,6 +164,20 @@ interface EstimateRequestBody {
 }
 
 export async function POST(req: Request) {
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+    req.headers.get('x-real-ip') ||
+    'unknown';
+  const sessionId = req.headers.get('x-session-id') || '';
+
+  const { allowed, reason } = checkRateLimit(ip, sessionId);
+  if (!allowed) {
+    return Response.json(
+      { success: false, error: reason },
+      { status: 429 }
+    );
+  }
+
   try {
     const { formData: body, confirmed }: EstimateRequestBody = await req.json();
 
@@ -156,9 +195,10 @@ Materials to validate:
 ${confirmed.materials.map((m) => `- ${m.item}`).join('\n')}`;
 
     const valResponse = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 256,
       temperature: 0,
+      cache_control: { type: 'ephemeral' },
       system: VALIDATION_PROMPT,
       messages: [{ role: 'user', content: validationMessage }],
     });
@@ -223,15 +263,23 @@ ${materialsList}${blsContext}
     `.trim();
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2048,
-      temperature: 0,
+      model: 'claude-sonnet-4-6',
+      max_tokens: 8000,
+      //temperature: 0,
+      cache_control: { type: 'ephemeral' },
+      thinking: {
+        type: 'adaptive',
+        display: 'omitted',
+      } as { type: 'adaptive'; display: 'omitted' },
+      output_config: {
+        effort: 'medium',
+      },
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
     });
 
-    const rawText =
-      response.content[0].type === 'text' ? response.content[0].text : '';
+    const textBlock = response.content.find((b) => b.type === 'text');
+    const rawText = textBlock?.type === 'text' ? textBlock.text : '';
 
     const cleaned = rawText
       .replace(/```json/g, '')
@@ -246,6 +294,10 @@ ${materialsList}${blsContext}
     return Response.json({ success: true, estimate });
   } catch (error) {
     console.error('Estimate API error:', error);
+
+    if (error instanceof Error) {
+    console.error('Stack:', error.stack);
+  }
     return Response.json(
       { success: false, error: 'Failed to generate estimate' },
       { status: 500 }
